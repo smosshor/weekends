@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f3efe6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Weekends">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon180.png">
+<title>Weekends</title>
+<link rel="icon" href="icon48.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=Libre+Baskerville:wght@400;700&family=PT+Mono&display=swap">
+<link rel="stylesheet" href="app.css">
+<script src="config.js"></script>
+<script src="theme.js"></script>
+</head>
+<body>
+<nav class="topnav" id="hdr">
+  <div class="pills">
+    <button class="pill" data-view="weekends">Weekends</button>
+    <button class="pill" data-view="month">Month</button>
+    <button class="pill" data-view="week">Week</button>
+  </div>
+  <div class="navgroup">
+    <button class="pill round" id="prev" aria-label="Previous">‹</button>
+    <h1 id="title">—</h1>
+    <button class="pill round" id="next" aria-label="Next">›</button>
+  </div>
+  <button class="pill ghost" id="todayBtn">Today</button>
+  <span class="sticker yellow" id="stat" hidden></span>
+  <span class="spacer"></span>
+  <label class="toggle" id="hidePastWrap"><input type="checkbox" id="hidePast"> Hide past</label>
+  <label class="toggle" id="weekStartWrap" hidden>Week starts
+    <select id="weekStart"><option value="6">Sat</option><option value="0">Sun</option><option value="1">Mon</option></select>
+  </label>
+  <button class="pill ghost" id="shareBtn">Share</button>
+  <button class="pill ghost" id="themeBtn">Theme</button>
+  <button class="pill ghost" id="calBtn">Calendars</button>
+  <button class="pill ghost round" id="refresh" title="Reload from Google Calendar">↻</button>
+  <button class="pill ghost round" id="moreBtn" aria-label="More options">⋯</button>
+  <span id="status"></span>
+</nav>
+
+<main>
+  <div class="banner" id="banner" hidden></div>
+  <section class="panel" id="panel"><div class="loading">Loading your calendar…</div></section>
+</main>
+
+<!-- Event editor -->
+<div class="scrim" id="evScrim">
+  <form class="modal" id="evForm" autocomplete="off">
+    <h2 id="evTitle">New plan</h2>
+    <label class="field"><span>What</span><input id="fTitle" required placeholder="Camping – Big Sur"></label>
+    <label class="field"><span>Calendar</span><select id="fCal"></select></label>
+    <label class="toggle dark"><input type="checkbox" id="fAllDay" checked> All day</label>
+    <div class="two">
+      <label class="field"><span>From</span><input type="date" id="fStart" required></label>
+      <label class="field"><span>To</span><input type="date" id="fEnd" required></label>
+    </div>
+    <div class="two" id="timeRow" hidden>
+      <label class="field"><span>Start time</span><input type="time" id="fStartT" value="10:00"></label>
+      <label class="field"><span>End time</span><input type="time" id="fEndT" value="11:00"></label>
+    </div>
+    <label class="field"><span>Where</span><input id="fLoc"></label>
+    <label class="field"><span>Details</span><textarea id="fDesc" rows="3"></textarea></label>
+    <div class="hint" id="evHint"></div>
+    <div class="err" id="evErr"></div>
+    <div class="actions">
+      <button type="button" class="pill danger" id="evDelete" hidden>Delete</button>
+      <a class="pill ghost" id="evOpen" target="_blank" rel="noopener" hidden>Open in Google</a>
+      <span class="spacer"></span>
+      <button type="button" class="pill ghost" id="evCancel">Cancel</button>
+      <button type="submit" class="pill" id="evSave">Save</button>
+    </div>
+  </form>
+</div>
+
+<!-- Calendar picker -->
+<div class="scrim" id="calScrim">
+  <div class="modal">
+    <h2>Calendars</h2>
+    <div class="hint">Tick the calendars to show. "New" is where new plans are saved.</div>
+    <div class="callist" id="calList"></div>
+    <div class="actions"><span class="hint" id="me"></span><span class="spacer"></span><button class="pill" id="calDone">Done</button></div>
+  </div>
+</div>
+
+<!-- Share -->
+<div class="scrim" id="shareScrim">
+  <div class="modal">
+    <h2>Share this view</h2>
+    <div class="hint">Your friend signs in with their own Google account, so they also need access to these calendars in Google Calendar (Settings → your calendar → Share with specific people).</div>
+    <div class="callist" id="shareCals"></div>
+    <label class="toggle dark"><input type="checkbox" id="shareRO" checked> Read-only (hide adding, editing and dragging)</label>
+    <label class="field"><span>Link: anyone can open it in a browser</span><input id="shareLink" readonly></label>
+    <div class="actions"><span class="spacer"></span><button class="pill ghost" id="shareDone">Close</button><button class="pill" id="copyShare">Copy link</button></div>
+  </div>
+</div>
+
+<!-- More menu (phone) -->
+<div class="scrim" id="moreScrim">
+  <div class="modal">
+    <h2>Options</h2>
+    <div class="morelist" id="moreList">
+      <button class="pill ghost" data-do="shareBtn">Share this view</button>
+      <button class="pill ghost" data-do="calBtn">Calendars</button>
+      <button class="pill ghost" data-do="themeBtn">Theme</button>
+      <button class="pill ghost" data-do="refresh">Refresh</button>
+    </div>
+    <label class="toggle dark" id="moreHidePastRow"><input type="checkbox" id="moreHidePast"> Hide past weekends</label>
+    <label class="toggle dark" id="moreWeekStartRow">Week starts
+      <select id="moreWeekStart"><option value="6">Sat</option><option value="0">Sun</option><option value="1">Mon</option></select>
+    </label>
+  </div>
+</div>
+
+<!-- Theme picker -->
+<div class="scrim" id="themeScrim">
+  <div class="modal">
+    <h2>Theme</h2>
+    <div class="themes" id="themeList"></div>
+    <div class="actions"><span class="spacer"></span><button class="pill" id="themeDone">Done</button></div>
+  </div>
+</div>
+
+<script src="calendar-api.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
