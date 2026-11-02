@@ -426,3 +426,8 @@ body.readonly .half:hover { background: var(--cell); }
 
 body.signed-out .topnav, body.signed-out .pills { display: none !important; }
 body.signed-out main { padding-top: 24px; }
+
+/* Friday hidden */
+.wk.nofri { grid-template-columns: 64px minmax(0,1fr) minmax(0,1fr) 170px; }
+.wk.nofri .row > .wkd { grid-column: span 2; grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+@media (max-width: 760px) { #showFriWrap { display: none !important; } }

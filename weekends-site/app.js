@@ -55,7 +55,8 @@
     weekStart: null,
     calendars: [], selected: [], defaultCal: null, me: '', shared: null, failed: [],
     events: [], notes: {},
-    hidePast: pref('hidePast') === '1'
+    hidePast: pref('hidePast') === '1',
+    showFri: pref('showFri') !== '0'
   };
   const startOfWeek = s => addDays(s, -((dow(s) - S.weekStartDay + 7) % 7));
   S.weekStart = startOfWeek(today());
@@ -123,6 +124,8 @@
   function render() {
     document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === S.view));
     $('hidePastWrap').hidden = S.view !== 'weekends';
+    $('showFriWrap').hidden = S.view !== 'weekends';
+    $('showFri').checked = S.showFri;
     $('weekStartWrap').hidden = S.view === 'weekends';
     $('weekStart').value = String(S.weekStartDay);
     document.body.classList.toggle('mobile', isMobile());
@@ -137,7 +140,7 @@
   function chip(ev, w) {
     const sd = evStartDay(ev), ed = evEndDay(ev), bits = [];
     if (!ev.allDay) bits.push(fmtTime(ev.startMs));
-    if (sd < w.fri) bits.push('from ' + rel(sd, w.fri, true));
+    if (sd < w.first) bits.push('from ' + rel(sd, w.first, true));
     if (ed > w.sun) bits.push('to ' + rel(ed, w.sun, false));
     return `<button class="chip" data-i="${evIndex(ev)}" draggable="${canEdit(ev)}" style="${paint(ev)};--r:${tilt(ev)}deg" title="${esc(ev.title + (ev.location ? ' — ' + ev.location : ''))}"><span class="t">${esc(ev.title)}</span>${bits.length ? `<span class="m">${esc(bits.join(' · '))}</span>` : ''}</button>`;
   }
@@ -145,9 +148,9 @@
   function bar(p, w) {
     const { ev, s, e, lane } = p;
     const sd = evStartDay(ev), ed = evEndDay(ev);
-    const cl = sd < w.fri, cr = ed > w.sun;
+    const cl = sd < w.first, cr = ed > w.sun;
     let range = '';
-    if (cl || cr) range = (cl ? rel(sd, w.fri, true) : DOW[dow(sd)]) + ' – ' + (cr ? rel(ed, w.sun, false) : DOW[dow(ed)]);
+    if (cl || cr) range = (cl ? rel(sd, w.first, true) : DOW[dow(sd)]) + ' – ' + (cr ? rel(ed, w.sun, false) : DOW[dow(ed)]);
     else if (!ev.allDay) range = `${DOW[dow(sd)]} ${fmtTime(ev.startMs)} – ${DOW[dow(ed)]} ${fmtTime(ev.endMs)}`;
     return `<button class="bar${cl ? ' cl' : ''}${cr ? ' cr' : ''}" data-i="${evIndex(ev)}" draggable="${canEdit(ev)}" style="${paint(ev)};grid-column:${s + 1}/${e + 2};grid-row:${lane + 2}" title="${esc(ev.title)}">${cl ? '<span class="arr">←</span>' : ''}<span class="t">${esc(ev.title)}</span>${range ? `<span class="m">${esc(range)}</span>` : ''}${cr ? '<span class="arr">→</span>' : ''}</button>`;
   }
@@ -155,13 +158,14 @@
   function renderWeekends() {
     $('title').textContent = S.year;
     const ws = weekends(S.year), hols = holidays(S.year), t = today();
-    const out = ['<div class="wk"><div class="head"><div class="h-month"></div><div class="h-fri">Friday</div><div>Saturday</div><div>Sunday</div><div class="h-hol">Holidays</div></div>'];
+    const out = [`<div class="wk${S.showFri ? '' : ' nofri'}"><div class="head"><div class="h-month"></div>${S.showFri ? '<div class="h-fri">Friday</div>' : ''}<div>Saturday</div><div>Sunday</div><div class="h-hol">Holidays</div></div>`];
     let lastMonth = -1, free = 0, freeLeft = 0;
     ws.forEach(wk => {
-      const w = { fri: addDays(wk.sat, -1), sat: wk.sat, sun: wk.sun }, days = [w.fri, w.sat, w.sun];
+      const w = { fri: addDays(wk.sat, -1), sat: wk.sat, sun: wk.sun }; w.first = S.showFri ? w.fri : w.sat;
+      const days = S.showFri ? [w.fri, w.sat, w.sun] : [w.sat, w.sun], satI = days.indexOf(w.sat);
       const m = parse(w.sat).getMonth(), monthStart = m !== lastMonth; lastMonth = m;
       const past = w.sun < t, now = w.sun >= t && addDays(w.sat, -5) <= t;
-      const singles = [[], [], []], multi = [];
+      const singles = days.map(() => []), multi = [];
       for (const ev of S.events) {
         const hit = days.map(d => covers(ev, d));
         const s = hit.indexOf(true);
@@ -173,14 +177,14 @@
       multi.sort((x, y) => x.s - y.s || (y.e - y.s) - (x.e - x.s) || order(x.ev, y.ev));
       const lanes = [];
       multi.forEach(p => { let l = lanes.findIndex(end => end < p.s); if (l === -1) { l = lanes.length; lanes.push(p.e); } else lanes[l] = p.e; p.lane = l; });
-      const isFree = ![1, 2].some(i => singles[i].length) && !multi.some(p => p.e >= 1);
+      const isFree = !singles.slice(satI).some(l => l.length) && !multi.some(p => p.e >= satI);
       if (isFree) { free++; if (!past) freeLeft++; }
       if (S.hidePast && past) return;
       const h = hols.filter(x => x.date >= addDays(w.sat, -2) && x.date <= addDays(w.sat, 2));
       const half = (i) => {
         const day = days[i], list = singles[i], newMonth = i > 0 && parse(day).getMonth() !== parse(days[i - 1]).getMonth();
         return `
-        <div class="half${i === 0 ? ' fri' : ''}" data-day="${day}" style="grid-column:${i + 1};grid-row:1/-1"></div>
+        <div class="half${day === w.fri ? ' fri' : ''}" data-day="${day}" style="grid-column:${i + 1};grid-row:1/-1"></div>
         <div class="cell" style="grid-column:${i + 1};grid-row:1">
           <button class="daynum${newMonth ? ' newmonth' : ''}" data-goto="${day}" title="Open the week of ${shortDate(day)}">${parse(day).getDate()}</button>
           <div class="plans" data-for="${day}">${list.map(e => chip(e, w)).join('')}${list.length ? '' : '<span class="addhint">+ add</span>'}</div>
@@ -188,7 +192,7 @@
       };
       out.push(`<div class="row${monthStart ? ' monthstart' : ''}${past ? ' past' : ''}${now ? ' now' : ''}" data-sat="${w.sat}">`,
         `<div class="month">${monthStart ? MONTHS[m] : ''}</div>`,
-        `<div class="wkd" data-drop style="grid-template-rows:auto${' auto'.repeat(lanes.length)}${lanes.length ? ' 6px' : ''}">${half(0)}${half(1)}${half(2)}${multi.map(p => bar(p, w)).join('')}</div>`,
+        `<div class="wkd" data-drop style="grid-template-rows:auto${' auto'.repeat(lanes.length)}${lanes.length ? ' 6px' : ''}">${days.map((_, i) => half(i)).join('')}${multi.map(p => bar(p, w)).join('')}</div>`,
         `<div class="hol">${h.map(x => `<span class="sticker">${esc(x.name)}${[0, 6].includes(dow(x.date)) ? '' : ` <small>${DOW[dow(x.date)]}</small>`}</span>`).join('')}</div>`,
         '</div>');
     });
@@ -268,9 +272,10 @@
     const ws = weekends(S.year), hols = holidays(S.year), t = today();
     let free = 0, freeLeft = 0;
     const cards = ws.map(wk => {
-      const w = { fri: addDays(wk.sat, -1), sat: wk.sat, sun: wk.sun }, days = [w.fri, w.sat, w.sun];
+      const w = { fri: addDays(wk.sat, -1), sat: wk.sat, sun: wk.sun }; w.first = S.showFri ? w.fri : w.sat;
+      const days = S.showFri ? [w.fri, w.sat, w.sun] : [w.sat, w.sun], satI = days.indexOf(w.sat);
       const past = w.sun < t, now = w.sun >= t && addDays(w.sat, -5) <= t;
-      const singles = [[], [], []], multi = [];
+      const singles = days.map(() => []), multi = [];
       for (const ev of S.events) {
         const hit = days.map(d => covers(ev, d)), s0 = hit.indexOf(true);
         if (s0 === -1) continue;
@@ -278,17 +283,17 @@
         if (s0 === e0) singles[s0].push(ev); else multi.push(ev);
       }
       singles.forEach(l => l.sort(order)); multi.sort(order);
-      const isFree = !singles[1].length && !singles[2].length && !multi.some(ev => covers(ev, w.sat) || covers(ev, w.sun));
+      const isFree = !singles.slice(satI).some(l => l.length) && !multi.some(ev => covers(ev, w.sat) || covers(ev, w.sun));
       if (isFree) { free++; if (!past) freeLeft++; }
       if (S.hidePast && past) return '';
-      const f = parse(w.fri), su = parse(w.sun);
-      const range = f.getMonth() === su.getMonth() ? `${MONTHS[f.getMonth()]} ${f.getDate()}–${su.getDate()}` : `${shortDate(w.fri)} – ${shortDate(w.sun)}`;
+      const f = parse(w.first), su = parse(w.sun);
+      const range = f.getMonth() === su.getMonth() ? `${MONTHS[f.getMonth()]} ${f.getDate()}–${su.getDate()}` : `${shortDate(w.first)} – ${shortDate(w.sun)}`;
       const bars = multi.map(ev => {
         const sd = evStartDay(ev), ed = evEndDay(ev);
-        const lbl = `${sd < w.fri ? rel(sd, w.fri, true) : DOW[dow(sd)]} – ${ed > w.sun ? rel(ed, w.sun, false) : DOW[dow(ed)]}`;
+        const lbl = `${sd < w.first ? rel(sd, w.first, true) : DOW[dow(sd)]} – ${ed > w.sun ? rel(ed, w.sun, false) : DOW[dow(ed)]}`;
         return `<button class="bar mb" data-i="${evIndex(ev)}" style="${paint(ev)}"><span class="t">${esc(ev.title)}</span><span class="m">${esc(lbl)}</span></button>`;
       }).join('');
-      const dayRow = i => `<div class="wc-day half${i === 0 ? ' fri' : ''}" data-day="${days[i]}">
+      const dayRow = i => `<div class="wc-day half${days[i] === w.fri ? ' fri' : ''}" data-day="${days[i]}">
           <button class="daynum" data-goto="${days[i]}">${parse(days[i]).getDate()}</button>
           <span class="dname">${DOW[dow(days[i])]}</span>
           <div class="plans" data-for="${days[i]}">${singles[i].map(e => chip(e, w)).join('')}${singles[i].length ? '' : '<span class="addhint">+ add</span>'}</div>
@@ -296,7 +301,7 @@
       return `<article class="wcard${past ? ' past' : ''}${now ? ' now' : ''}${isFree ? ' free' : ''}" data-sat="${w.sat}">
         <header><b>${range}</b>${isFree && !past ? '<span class="freetag">free</span>' : ''}${holidayTags(w, hols)}</header>
         ${bars ? `<div class="wc-bars">${bars}</div>` : ''}
-        ${dayRow(0)}${dayRow(1)}${dayRow(2)}
+        ${days.map((_, i) => dayRow(i)).join('')}
       </article>`;
     }).join('');
     panel.innerHTML = `<div class="wcards">${cards}</div>`;
@@ -348,6 +353,8 @@
   function openMore() {
     $('moreHidePast').checked = S.hidePast;
     $('moreHidePastRow').hidden = S.view !== 'weekends';
+    $('moreShowFriRow').hidden = S.view !== 'weekends';
+    $('moreShowFri').checked = S.showFri;
     $('moreWeekStartRow').hidden = S.view === 'weekends';
     $('moreWeekStart').value = String(S.weekStartDay);
     $('moreScrim').classList.add('open');
@@ -360,6 +367,7 @@
     closeMore();
     $(b.dataset.do).click();
   });
+  $('moreShowFri').addEventListener('change', () => { $('showFri').checked = $('moreShowFri').checked; $('showFri').dispatchEvent(new Event('change')); });
   $('moreHidePast').addEventListener('change', () => { $('hidePast').checked = $('moreHidePast').checked; $('hidePast').dispatchEvent(new Event('change')); });
   $('moreWeekStart').addEventListener('change', () => { $('weekStart').value = $('moreWeekStart').value; $('weekStart').dispatchEvent(new Event('change')); });
 
@@ -689,6 +697,7 @@
     if (S.year !== new Date().getFullYear()) { S.year = new Date().getFullYear(); load(true); } else scrollToNow();
   });
   $('refresh').addEventListener('click', () => load(false));
+  $('showFri').addEventListener('change', () => { S.showFri = $('showFri').checked; pref('showFri', S.showFri ? '1' : '0'); render(); });
   $('hidePast').checked = S.hidePast;
   $('hidePast').addEventListener('change', () => { S.hidePast = $('hidePast').checked; pref('hidePast', S.hidePast ? '1' : '0'); render(); });
   $('weekStart').addEventListener('change', () => {
