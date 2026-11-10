@@ -94,7 +94,7 @@
     { id: 'daisy', name: 'Daisy', sw: ['#f4f3e8', '#d2fba4', '#e7ccff', '#f0b8e8'] }
   ];
   const setTheme = id => { document.documentElement.dataset.theme = id; pref('theme', id); };
-  function tilt(ev) { let h = 0; for (const ch of String(ev.id)) h = (h * 31 + ch.charCodeAt(0)) | 0; return (((h % 5) + 5) % 5 - 2) * 0.6; }
+  const tilt = () => 0; // chips sit straight
   const evIndex = ev => S.events.indexOf(ev);
   const isRO = () => !!(S.shared && S.shared.ro);
   const canEdit = ev => { if (isRO()) return false; const c = calById(ev.calId); return !c || c.writable !== false; };
