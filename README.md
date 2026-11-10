@@ -1,2 +1,2 @@
 # weekends
-See your year one weekend at a time, from Google Calendar
+See your year one weekend at a time. A google calendar based view. 
